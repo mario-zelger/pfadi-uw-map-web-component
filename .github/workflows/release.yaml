@@ -42,11 +42,7 @@ jobs:
           echo "Next major strict version: ${{ steps.semver.outputs.nextMajorStrict }}"
           echo "Bump: ${{ steps.semver.outputs.bump }}"
           echo "Is prerelease: ${{ inputs.is-prerelease }}"
-          if [ "${{ inputs.is-prerelease }}" = "false" ]; then
-            echo "nextVersion=$nextVersion" >> "$GITHUB_OUTPUT"
-          else
-            echo "nextVersion=${nextVersion}-beta" >> "$GITHUB_OUTPUT"
-          fi
+          echo "nextVersion=$nextVersion" >> "$GITHUB_OUTPUT"
 
   build:
     runs-on: ubuntu-latest
