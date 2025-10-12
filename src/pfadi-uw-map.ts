@@ -38,7 +38,7 @@ class PfadiUwMap extends HTMLElement {
 
   constructor() {
     super();
-    this.shadowDom = this.attachShadow({ mode: 'closed' });
+    this.shadowDom = this.attachShadow({ mode: 'open' });
     this.apiStringBuilder = new GeoApiStringBuilder()
       .withBaseUrl('https://api3.geo.admin.ch/rest/services/api/MapServer/ch.swisstopo.swissboundaries3d-gemeinde-flaeche.fill/')
       .withGeometryFormat('geojson')
