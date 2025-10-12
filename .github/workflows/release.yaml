@@ -12,7 +12,7 @@ on:
 permissions:
   contents: write
   actions: write
-  
+
 jobs:
   get-versions:
     name: Get SemVer
@@ -133,5 +133,6 @@ jobs:
           tag: ${{ needs.get-versions.outputs.semverNext }}
           commit: ${{ github.sha }}
           artifacts: "./dist/*.js"
+          prerelease: false,
           makeLatest: true
           token: ${{ github.token }}
