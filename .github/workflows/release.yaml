@@ -9,6 +9,10 @@ on:
         type: boolean
         default: true
 
+permissions:
+  contents: write
+  actions: write
+  
 jobs:
   get-versions:
     name: Get SemVer
