@@ -201,15 +201,6 @@ class PfadiUwMap extends HTMLElement {
           composed: true,
         }),
       );
-
-      if (this.map) {
-        const layer = e.target as Layer;
-        if ((layer as any).getBounds) {
-          // TODO: Check if zooming to region on click is useful.
-          const bounds = (layer as any).getBounds();
-          this.map.fitBounds(bounds, { padding: [250, 250] });
-        }
-      }
     });
 
     for (const feature of features) {
