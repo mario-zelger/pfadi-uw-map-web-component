@@ -21,6 +21,7 @@ class PfadiUwMap extends HTMLElement {
   private isInitialized: boolean = false;
   private selectedLayer: FeatureGroup | null = null;
   private selectedRegionId: string | null = null;
+  private regions: Region[] = [];
   private map: LeafletMap | null = null;
 
   private readonly shadowDom: ShadowRoot;
@@ -38,7 +39,7 @@ class PfadiUwMap extends HTMLElement {
 
   constructor() {
     super();
-    this.shadowDom = this.attachShadow({ mode: 'open' });
+    this.shadowDom = this.attachShadow({ mode: 'closed' });
     this.apiStringBuilder = new GeoApiStringBuilder()
       .withBaseUrl('https://api3.geo.admin.ch/rest/services/api/MapServer/ch.swisstopo.swissboundaries3d-gemeinde-flaeche.fill/')
       .withGeometryFormat('geojson')
@@ -62,6 +63,7 @@ class PfadiUwMap extends HTMLElement {
 
     this.map.addLayer(L.tileLayer(CONFIG.TILE_URL));
     this.map.setView(L.latLng(46.9, 8.37), 11);
+    this.addFeaturesToMap();
 
     this.isInitialized = true;
   }
@@ -118,12 +120,9 @@ class PfadiUwMap extends HTMLElement {
   }
 
   private async updateRegions(regions: Region[]): Promise<void> {
-    if (!this.map) {
-      return;
-    }
-
     this.layersById.clear();
     this.colorsByRegion.clear();
+    this.regions = regions;
 
     this.updateColorsByRegion(regions);
 
@@ -151,18 +150,13 @@ class PfadiUwMap extends HTMLElement {
           }
         }
 
-        await this.addRegions(features);
+        this.initRegionFeatures(features);
       });
 
     await Promise.all(loadRegionInfos);
 
-    const regionsWithScoutingHomes = regions.filter((r) => !!r.scoutingHome);
-    for (const region of regionsWithScoutingHomes) {
-      const scoutingHome = region.scoutingHome!;
-      // TODO: Verify if Popup content is useful as is.
-      L.marker([scoutingHome.latitude, scoutingHome.longitude])
-        .addTo(this.map)
-        .bindPopup(`Pfadiheim ${region.title}: ${scoutingHome.address}`);
+    if (this.map) {
+      this.addFeaturesToMap();
     }
   }
 
@@ -178,7 +172,7 @@ class PfadiUwMap extends HTMLElement {
     }
   }
 
-  private async addRegions(features: Feature[]): Promise<void> {
+  private initRegionFeatures(features: Feature[]): void {
     const layers = features.map((feature) =>
       L.geoJSON(feature, {
         style: (_) => this.defaultStyle,
@@ -193,17 +187,9 @@ class PfadiUwMap extends HTMLElement {
     );
 
     const mapFeature = layers.length === 1 ? layers[0] : L.featureGroup(layers);
-    for (const feature of features) {
-      if (!feature.id) {
-        continue;
-      }
-
-      this.layersById.set(feature.id, mapFeature);
-    }
-
     mapFeature.on('click', (e: LeafletEvent) => {
       const feature = (e as any).propagatedFrom?.feature;
-      if (!feature || !this.map) {
+      if (!feature) {
         return;
       }
 
@@ -216,15 +202,39 @@ class PfadiUwMap extends HTMLElement {
         }),
       );
 
-      // TODO: Check if zooming to region on click is useful.
-      const layer = e.target as Layer;
-      if ((layer as any).getBounds) {
-        const bounds = (layer as any).getBounds();
-        this.map.fitBounds(bounds, { padding: [250, 250] });
+      if (this.map) {
+        const layer = e.target as Layer;
+        if ((layer as any).getBounds) {
+          // TODO: Check if zooming to region on click is useful.
+          const bounds = (layer as any).getBounds();
+          this.map.fitBounds(bounds, { padding: [250, 250] });
+        }
       }
     });
 
-    mapFeature.addTo(this.map!);
+    for (const feature of features) {
+      if (!feature.id) {
+        continue;
+      }
+
+      this.layersById.set(feature.id, mapFeature);
+    }
+  }
+
+  private addFeaturesToMap() {
+    const uniqueFeatures = [...new Set(this.layersById.values())];
+    for (const mapFeature of uniqueFeatures) {
+      mapFeature.addTo(this.map!);
+    }
+
+    const regionsWithScoutingHomes = this.regions.filter((r) => !!r.scoutingHome);
+    for (const region of regionsWithScoutingHomes) {
+      const scoutingHome = region.scoutingHome!;
+      // TODO: Verify if Popup content is useful as is.
+      L.marker([scoutingHome.latitude, scoutingHome.longitude])
+        .addTo(this.map!)
+        .bindPopup(`Pfadiheim ${region.title}: ${scoutingHome.address}`);
+    }
   }
 
   private selectRegion(regionId: string | undefined, targetLayer?: FeatureGroup): void {
