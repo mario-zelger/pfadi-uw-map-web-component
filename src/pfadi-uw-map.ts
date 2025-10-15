@@ -19,14 +19,14 @@ const CONFIG = {
 
 class PfadiUwMap extends HTMLElement {
   private isInitialized: boolean = false;
-  private selectedLayer: FeatureGroup | null = null;
+  private selectedMapFeature: FeatureGroup | null = null;
   private selectedRegionId: string | null = null;
   private regions: Region[] = [];
   private map: LeafletMap | null = null;
 
   private readonly shadowDom: ShadowRoot;
   private readonly apiStringBuilder: GeoApiStringBuilder;
-  private readonly layersById: Map<string | number, FeatureGroup> = new Map<string | number, FeatureGroup>();
+  private readonly mapFeatureByRegionId: Map<string | number, FeatureGroup> = new Map<string | number, FeatureGroup>();
   private readonly colorsByRegion: Map<string, LayerColor> = new Map<string, LayerColor>();
   private readonly defaultColors: LayerColor = { color: '#BB7D5A', fillColor: 'lightgray' };
   private readonly defaultSelectedColors: LayerColor = { color: 'lightgray', fillColor: '#BB7D5A' };
@@ -120,7 +120,7 @@ class PfadiUwMap extends HTMLElement {
   }
 
   private async updateRegions(regions: Region[]): Promise<void> {
-    this.layersById.clear();
+    this.mapFeatureByRegionId.clear();
     this.colorsByRegion.clear();
     this.regions = regions;
 
@@ -173,7 +173,7 @@ class PfadiUwMap extends HTMLElement {
   }
 
   private initRegionFeatures(features: Feature[]): void {
-    const layers = features.map((feature) =>
+    const geoJsonLayers = features.map((feature) =>
       L.geoJSON(feature, {
         style: (_) => this.defaultStyle,
         onEachFeature: (feature: any, layer: any) => {
@@ -186,7 +186,7 @@ class PfadiUwMap extends HTMLElement {
       }),
     );
 
-    const mapFeature = layers.length === 1 ? layers[0] : L.featureGroup(layers);
+    const mapFeature = geoJsonLayers.length === 1 ? geoJsonLayers[0] : L.featureGroup(geoJsonLayers);
     mapFeature.on('click', (e: LeafletEvent) => {
       const feature = (e as any).propagatedFrom?.feature;
       if (!feature) {
@@ -208,12 +208,12 @@ class PfadiUwMap extends HTMLElement {
         continue;
       }
 
-      this.layersById.set(feature.id, mapFeature);
+      this.mapFeatureByRegionId.set(feature.id, mapFeature);
     }
   }
 
   private addFeaturesToMap() {
-    const uniqueFeatures = [...new Set(this.layersById.values())];
+    const uniqueFeatures = [...new Set(this.mapFeatureByRegionId.values())];
     for (const mapFeature of uniqueFeatures) {
       mapFeature.addTo(this.map!);
     }
@@ -228,27 +228,27 @@ class PfadiUwMap extends HTMLElement {
     }
   }
 
-  private selectRegion(regionId: string | undefined, targetLayer?: FeatureGroup): void {
+  private selectRegion(regionId: string | undefined, targetMapFeature?: FeatureGroup): void {
     if (!regionId || regionId.length === 0) {
       return;
     }
 
-    const selectedLayer = targetLayer ?? this.layersById.get(regionId);
-    if (!selectedLayer) {
+    const selectedFeature = targetMapFeature ?? this.mapFeatureByRegionId.get(regionId);
+    if (!selectedFeature) {
       return;
     }
 
-    if (!!this.selectedLayer && selectedLayer !== this.selectedLayer) {
-      this.selectedLayer.eachLayer((layer: Layer) => {
+    if (!!this.selectedMapFeature && selectedFeature !== this.selectedMapFeature) {
+      this.selectedMapFeature.eachLayer((layer: Layer) => {
         if (typeof (layer as any).setStyle === 'function') {
           (layer as any).setStyle(this.defaultStyle);
         }
       });
     }
 
-    this.selectedLayer = selectedLayer;
-    this.selectedLayer.bringToFront();
-    this.selectedLayer.eachLayer((layer: Layer) => {
+    this.selectedMapFeature = selectedFeature;
+    this.selectedMapFeature.bringToFront();
+    this.selectedMapFeature.eachLayer((layer: Layer) => {
       if (typeof (layer as any).setStyle === 'function') {
         // TODO: Check if color per region / organization is useful.
         // const color = this.colorsByRegion.get(regionId) ?? this.defaultSelectedColors;
