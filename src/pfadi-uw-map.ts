@@ -270,6 +270,7 @@ class PfadiUwMap extends HTMLElement {
       mapElement.setAttribute('id', 'map');
       mapElement.style.width = '100%';
       mapElement.style.height = '100%';
+      mapElement.style.zIndex = '0';
 
       const cssLinkElement = document.createElement('link');
       cssLinkElement.setAttribute('rel', 'stylesheet');
