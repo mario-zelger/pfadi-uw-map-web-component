@@ -17,11 +17,6 @@ window.onload = () => {
         regionIds: ['1501', '1504'],
         primaryColor: '#4A639A',
         secondaryColor: '#BC514A',
-        scoutingHome: {
-          address: 'Arschadstrasse 5, 6375 Beckenried',
-          latitude: 46.9637484,
-          longitude: 8.4658876,
-        },
       },
       // Buochs
       {
@@ -29,7 +24,6 @@ window.onload = () => {
         regionIds: ['1502', '1505'],
         primaryColor: '#75A660',
         secondaryColor: '#000000',
-        address: '',
       },
       // Dallenwil
       {
@@ -44,7 +38,6 @@ window.onload = () => {
         regionIds: ['1509', '1506'],
         primaryColor: '#D03029',
         secondaryColor: '#000000',
-        address: ' Am Bergli 25, 6370 Stans',
       },
     ];
     map.setAttribute('regions', JSON.stringify(regionInfos));

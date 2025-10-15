@@ -21,7 +21,6 @@ class PfadiUwMap extends HTMLElement {
   private isInitialized: boolean = false;
   private selectedMapFeature: FeatureGroup | null = null;
   private selectedRegionId: string | null = null;
-  private regions: Region[] = [];
   private map: LeafletMap | null = null;
 
   private readonly shadowDom: ShadowRoot;
@@ -122,7 +121,6 @@ class PfadiUwMap extends HTMLElement {
   private async updateRegions(regions: Region[]): Promise<void> {
     this.mapFeatureByRegionId.clear();
     this.colorsByRegion.clear();
-    this.regions = regions;
 
     this.updateColorsByRegion(regions);
 
@@ -216,15 +214,6 @@ class PfadiUwMap extends HTMLElement {
     const uniqueFeatures = [...new Set(this.mapFeatureByRegionId.values())];
     for (const mapFeature of uniqueFeatures) {
       mapFeature.addTo(this.map!);
-    }
-
-    const regionsWithScoutingHomes = this.regions.filter((r) => !!r.scoutingHome);
-    for (const region of regionsWithScoutingHomes) {
-      const scoutingHome = region.scoutingHome!;
-      // TODO: Verify if Popup content is useful as is.
-      L.marker([scoutingHome.latitude, scoutingHome.longitude])
-        .addTo(this.map!)
-        .bindPopup(`Pfadiheim ${region.title}: ${scoutingHome.address}`);
     }
   }
 

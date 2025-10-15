@@ -13,13 +13,6 @@ export interface Region {
   regionIds: string[];
   primaryColor: string;
   secondaryColor: string;
-  scoutingHome?: ScoutingHome;
-}
-
-export interface ScoutingHome {
-  latitude: number;
-  longitude: number;
-  address: string;
 }
 
 export interface RegionSelectedEventDetail {
