@@ -260,6 +260,14 @@ class PfadiUwMap extends HTMLElement {
         });
       }
     });
+
+    const bounds = this.selectedMapFeature.getBounds();
+    if (!this.map || !bounds.isValid()) {
+      return;
+    }
+
+    const center = bounds.getCenter();
+    this.map.panTo(center, { animate: true });
   }
 
   private initLeaflet(): Promise<HTMLDivElement> {
