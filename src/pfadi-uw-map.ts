@@ -18,14 +18,14 @@ const CONFIG = {
 } as const;
 
 class PfadiUwMap extends HTMLElement {
-  private isInitialized: boolean = false;
   private selectedMapFeature: FeatureGroup | null = null;
   private selectedRegionId: string | null = null;
   private map: LeafletMap | null = null;
+  private geoJsonFeaturesPerRegion: Feature[][] = [];
 
   private readonly shadowDom: ShadowRoot;
   private readonly apiStringBuilder: GeoApiStringBuilder;
-  private readonly mapFeatureByRegionId: Map<string | number, FeatureGroup> = new Map<string | number, FeatureGroup>();
+  private readonly mapFeatureByRegionId: Map<string, FeatureGroup> = new Map<string, FeatureGroup>();
   private readonly colorsByRegion: Map<string, LayerColor> = new Map<string, LayerColor>();
   private readonly defaultColors: LayerColor = { color: '#BB7D5A', fillColor: 'lightgray' };
   private readonly defaultSelectedColors: LayerColor = { color: 'lightgray', fillColor: '#BB7D5A' };
@@ -50,10 +50,6 @@ class PfadiUwMap extends HTMLElement {
   }
 
   async connectedCallback(): Promise<void> {
-    if (this.isInitialized) {
-      return;
-    }
-
     const mapElement = await this.initLeaflet();
     this.map = new L.Map(mapElement, {
       crs: L.CRS.EPSG3857,
@@ -62,27 +58,28 @@ class PfadiUwMap extends HTMLElement {
 
     this.map.addLayer(L.tileLayer(CONFIG.TILE_URL));
     this.map.setView(L.latLng(46.9, 8.37), 11);
-    this.addFeaturesToMap();
 
-    this.isInitialized = true;
+    this.addRegionFeaturesToMap();
+    this.selectRegion(this.selectedRegionId);
   }
 
   async attributeChangedCallback(name: string, oldValue: any, newValue: any): Promise<void> {
-    if (name === ATTRIBUTES.SELECTED_REGION_ID) {
-      if (newValue !== oldValue && typeof newValue === 'string' && newValue.length > 0) {
-        this.selectedRegionId = newValue;
-      }
+    if (newValue === oldValue) {
+      return;
     }
 
-    if (name === ATTRIBUTES.REGIONS && newValue) {
-      const regions: any = JSON.parse(newValue);
+    if (name === ATTRIBUTES.SELECTED_REGION_ID) {
+      this.selectedRegionId = newValue;
+      this.selectRegion(this.selectedRegionId);
+    }
+
+    if (name === ATTRIBUTES.REGIONS) {
+      const regions: Region[] = JSON.parse(newValue ?? []);
       this.ensureRegionsAreValid(regions);
 
-      await this.updateRegions(regions as Region[]);
-    }
-
-    if (this.selectedRegionId) {
-      this.selectRegion(this.selectedRegionId);
+      this.updateColorsByRegion(regions);
+      await this.loadFeaturesPerRegion(regions);
+      this.addRegionFeaturesToMap();
     }
   }
 
@@ -118,13 +115,22 @@ class PfadiUwMap extends HTMLElement {
     }
   }
 
-  private async updateRegions(regions: Region[]): Promise<void> {
-    this.mapFeatureByRegionId.clear();
+  // TODO: Check if color per region / organization is useful.
+  private updateColorsByRegion(regions: Region[]) {
     this.colorsByRegion.clear();
 
-    this.updateColorsByRegion(regions);
+    for (const region of regions) {
+      for (const regionId of region.regionIds) {
+        this.colorsByRegion.set(regionId, {
+          color: region.secondaryColor,
+          fillColor: region.primaryColor,
+        });
+      }
+    }
+  }
 
-    const loadRegionInfos = regions
+  private async loadFeaturesPerRegion(regions: Region[]): Promise<void> {
+    const regionFeatureLoadTasks = regions
       .map((r) => r.regionIds)
       .map(async (regionIds) => {
         const regionApiUrls = regionIds.map((id) => this.apiStringBuilder.withRegionId(id).build());
@@ -148,110 +154,98 @@ class PfadiUwMap extends HTMLElement {
           }
         }
 
-        this.initRegionFeatures(features);
+        return features;
       });
 
-    await Promise.all(loadRegionInfos);
-
-    if (this.map) {
-      this.addFeaturesToMap();
-    }
+    this.geoJsonFeaturesPerRegion = await Promise.all(regionFeatureLoadTasks);
   }
 
-  // TODO: Check if color per region / organization is useful.
-  private updateColorsByRegion(regions: Region[]) {
-    for (const region of regions) {
-      for (const regionId of region.regionIds) {
-        this.colorsByRegion.set(regionId, {
-          color: region.secondaryColor,
-          fillColor: region.primaryColor,
-        });
-      }
+  private addRegionFeaturesToMap(): void {
+    if (!this.map) {
+      return;
     }
-  }
 
-  private initRegionFeatures(features: Feature[]): void {
-    const geoJsonLayers = features.map((feature) =>
-      L.geoJSON(feature, {
-        style: (_) => this.defaultStyle,
-        onEachFeature: (feature: any, layer: any) => {
-          const nm = feature.properties.label;
-          layer.bindTooltip(nm, {
-            permanent: true,
-            direction: 'center',
-          });
-        },
-      }),
-    );
+    this.mapFeatureByRegionId.clear();
 
-    const mapFeature = geoJsonLayers.length === 1 ? geoJsonLayers[0] : L.featureGroup(geoJsonLayers);
-    mapFeature.on('click', (e: LeafletEvent) => {
-      const feature = (e as any).propagatedFrom?.feature;
-      if (!feature) {
-        return;
-      }
-
-      this.selectRegion(feature.id, e.target);
-      this.dispatchEvent(
-        new CustomEvent<RegionSelectedEventDetail>('region-selected', {
-          detail: { regionId: feature.id },
-          bubbles: true,
-          composed: true,
+    for (const regionFeatures of this.geoJsonFeaturesPerRegion) {
+      const geoJsonLayers = regionFeatures.map((feature) =>
+        L.geoJSON(feature, {
+          style: (_) => this.defaultStyle,
+          onEachFeature: (feature: any, layer: any) => {
+            const nm = feature.properties.label;
+            layer.bindTooltip(nm, {
+              permanent: true,
+              direction: 'center',
+            });
+          },
         }),
       );
-    });
 
-    for (const feature of features) {
-      if (!feature.id) {
-        continue;
-      }
-
-      this.mapFeatureByRegionId.set(feature.id, mapFeature);
-    }
-  }
-
-  private addFeaturesToMap() {
-    const uniqueFeatures = [...new Set(this.mapFeatureByRegionId.values())];
-    for (const mapFeature of uniqueFeatures) {
-      mapFeature.addTo(this.map!);
-    }
-  }
-
-  private selectRegion(regionId: string | undefined, targetMapFeature?: FeatureGroup): void {
-    if (!regionId || regionId.length === 0) {
-      return;
-    }
-
-    const selectedFeature = targetMapFeature ?? this.mapFeatureByRegionId.get(regionId);
-    if (!selectedFeature) {
-      return;
-    }
-
-    if (!!this.selectedMapFeature && selectedFeature !== this.selectedMapFeature) {
-      this.selectedMapFeature.eachLayer((layer: Layer) => {
-        if (typeof (layer as any).setStyle === 'function') {
-          (layer as any).setStyle(this.defaultStyle);
+      const mapFeature = geoJsonLayers.length === 1 ? geoJsonLayers[0] : L.featureGroup(geoJsonLayers);
+      mapFeature.on('click', (e: LeafletEvent) => {
+        const feature = (e as any).propagatedFrom?.feature;
+        if (!feature) {
+          return;
         }
+
+        this.selectRegion(feature.id, e.target);
+        this.dispatchEvent(
+          new CustomEvent<RegionSelectedEventDetail>('region-selected', {
+            detail: { regionId: feature.id },
+            bubbles: true,
+            composed: true,
+          }),
+        );
       });
+
+      for (const feature of regionFeatures) {
+        if (!feature.id) {
+          continue;
+        }
+
+        this.mapFeatureByRegionId.set(feature.id as string, mapFeature);
+      }
+
+      mapFeature.addTo(this.map);
+    }
+  }
+
+  private selectRegion(regionId: string | null, targetMapFeature?: FeatureGroup): void {
+    if (!this.map) {
+      return;
     }
 
-    this.selectedMapFeature = selectedFeature;
-    this.selectedMapFeature.bringToFront();
-    this.selectedMapFeature.eachLayer((layer: Layer) => {
-      if (typeof (layer as any).setStyle === 'function') {
-        // TODO: Check if color per region / organization is useful.
-        // const color = this.colorsByRegion.get(regionId) ?? this.defaultSelectedColors;
-        const color = this.defaultSelectedColors;
-        (layer as any).setStyle({
-          ...this.defaultStyle,
-          color: color.color,
-          fillColor: color.fillColor,
-        });
+    const newSelectedFeature = targetMapFeature ?? this.mapFeatureByRegionId.get(regionId ?? '');
+    if (!newSelectedFeature) {
+      if (this.selectedMapFeature) {
+        // Reset style of previously selected feature as no new feature is selected
+        this.setFeatureStyle(this.selectedMapFeature, this.defaultStyle);
       }
+
+      return;
+    }
+
+    if (this.selectedMapFeature === newSelectedFeature) {
+      // Feature is already selected, nothing to do
+      return;
+    }
+
+    if (this.selectedMapFeature) {
+      // Reset style of previously selected feature
+      this.setFeatureStyle(this.selectedMapFeature, this.defaultStyle);
+    }
+
+    this.selectedMapFeature = newSelectedFeature;
+    const selectedColors = this.defaultSelectedColors;
+    this.setFeatureStyle(this.selectedMapFeature, {
+      ...this.defaultStyle,
+      color: selectedColors.color,
+      fillColor: selectedColors.fillColor,
     });
 
+    this.selectedMapFeature.bringToFront();
     const bounds = this.selectedMapFeature.getBounds();
-    if (!this.map || !bounds.isValid()) {
+    if (!bounds.isValid()) {
       return;
     }
 
@@ -259,7 +253,15 @@ class PfadiUwMap extends HTMLElement {
     this.map.panTo(center, { animate: true });
   }
 
-  private initLeaflet(): Promise<HTMLDivElement> {
+  private setFeatureStyle(feature: FeatureGroup, style: LayerStyle): void {
+    feature.eachLayer((layer: Layer) => {
+      if (typeof (layer as any).setStyle === 'function') {
+        (layer as any).setStyle(style);
+      }
+    });
+  }
+
+  private async initLeaflet(): Promise<HTMLDivElement> {
     const leafletCdnBaseUrl = `https://unpkg.com/leaflet@${CONFIG.LEAFLET_VERSION}/dist`;
 
     return new Promise((resolve, reject) => {
@@ -275,7 +277,7 @@ class PfadiUwMap extends HTMLElement {
       cssLinkElement.setAttribute('integrity', 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=');
       cssLinkElement.setAttribute('crossorigin', '');
       const cssLoadedPromise = new Promise((res, rej) => {
-        cssLinkElement.onload = () => res(mapElement);
+        cssLinkElement.onload = () => res(cssLinkElement);
         cssLinkElement.onerror = () => rej(new Error(`Could not load Leaflet CSS.`));
       });
 
@@ -292,18 +294,18 @@ class PfadiUwMap extends HTMLElement {
             shadowUrl: `${leafletCdnBaseUrl}/images/marker-shadow.png`,
           });
 
-          res(mapElement);
+          res(scriptElement);
         };
         scriptElement.onerror = () => rej(new Error(`Could not load Leaflet script.`));
       });
 
-      Promise.all([cssLoadedPromise, scriptLoadedPromise])
-        .then(() => resolve(mapElement))
-        .catch((e) => reject(e));
-
       this.shadowDom.appendChild(mapElement);
       this.shadowDom.appendChild(cssLinkElement);
       this.shadowDom.appendChild(scriptElement);
+
+      Promise.all([cssLoadedPromise, scriptLoadedPromise])
+        .then(() => resolve(mapElement))
+        .catch((e) => reject(e));
     });
   }
 }
