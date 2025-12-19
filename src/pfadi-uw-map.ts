@@ -56,7 +56,11 @@ class PfadiUwMap extends HTMLElement {
       worldCopyJump: false,
     });
 
-    this.map.addLayer(L.tileLayer(CONFIG.TILE_URL));
+    this.map.addLayer(L.tileLayer(CONFIG.TILE_URL, {
+      keepBuffer: 20,
+      minZoom: 11,
+      maxZoom: 13
+    }));
     this.map.setView(L.latLng(46.9, 8.37), 11);
 
     this.addRegionFeaturesToMap();
@@ -166,10 +170,13 @@ class PfadiUwMap extends HTMLElement {
     }
 
     this.mapFeatureByRegionId.clear();
+    const renderer = L.svg({ padding: 4 });
 
     for (const regionFeatures of this.geoJsonFeaturesPerRegion) {
       const geoJsonLayers = regionFeatures.map((feature) =>
         L.geoJSON(feature, {
+          // @ts-ignore
+          renderer,
           style: (_) => this.defaultStyle,
           onEachFeature: (feature: any, layer: any) => {
             const nm = feature.properties.label;
@@ -178,7 +185,7 @@ class PfadiUwMap extends HTMLElement {
               direction: 'center',
             });
           },
-        }),
+        })
       );
 
       const mapFeature = geoJsonLayers.length === 1 ? geoJsonLayers[0] : L.featureGroup(geoJsonLayers);
