@@ -1,8 +1,8 @@
 import type { Feature } from 'geojson';
 import type { FeatureGroup, Layer, LeafletEvent, Map as LeafletMap } from 'leaflet';
+import L from 'leaflet';
 import type { LayerColor, LayerStyle, Region, RegionSelectedEventDetail } from './interfaces';
 import { GeoApiStringBuilder } from './utilities/geo-api-string-builder.ts';
-import L from 'leaflet';
 import leafletCss from 'leaflet/dist/leaflet.css?inline';
 
 const ATTRIBUTES = {
@@ -23,7 +23,6 @@ class PfadiUwMap extends HTMLElement {
   private readonly shadowDom: ShadowRoot;
   private readonly apiStringBuilder: GeoApiStringBuilder;
   private readonly mapFeatureByRegionId: Map<string, FeatureGroup> = new Map<string, FeatureGroup>();
-  private readonly colorsByRegion: Map<string, LayerColor> = new Map<string, LayerColor>();
   private readonly defaultColors: LayerColor = { color: '#BB7D5A', fillColor: 'lightgray' };
   private readonly defaultSelectedColors: LayerColor = { color: 'lightgray', fillColor: '#BB7D5A' };
   private readonly defaultStyle: LayerStyle = {
@@ -54,13 +53,18 @@ class PfadiUwMap extends HTMLElement {
       worldCopyJump: false,
     });
 
-    this.map.addLayer(L.tileLayer(CONFIG.TILE_URL, {
-      keepBuffer: 20,
-      minZoom: 11,
-      maxZoom: 13
-    }));
+    this.map.addLayer(
+      L.tileLayer(CONFIG.TILE_URL, {
+        keepBuffer: 20,
+        minZoom: 11,
+        maxZoom: 13,
+      }),
+    );
     this.map.setView(L.latLng(46.9, 8.37), 11);
-    console.debug('[pfadi-uw-map] map initialized, features pending:', this.geoJsonFeaturesPerRegion.map(f => f.length));
+    console.debug(
+      '[pfadi-uw-map] map initialized, features pending:',
+      this.geoJsonFeaturesPerRegion.map((f) => f.length),
+    );
 
     this.addRegionFeaturesToMap();
     this.selectRegion(this.selectedRegionId);
@@ -84,9 +88,11 @@ class PfadiUwMap extends HTMLElement {
         console.debug('[pfadi-uw-map] parsed regions:', regions.length);
         this.ensureRegionsAreValid(regions);
 
-        this.updateColorsByRegion(regions);
         await this.loadFeaturesPerRegion(regions);
-        console.debug('[pfadi-uw-map] features loaded:', this.geoJsonFeaturesPerRegion.map(f => f.length));
+        console.debug(
+          '[pfadi-uw-map] features loaded:',
+          this.geoJsonFeaturesPerRegion.map((f) => f.length),
+        );
         this.addRegionFeaturesToMap();
       } catch (e) {
         console.error('[pfadi-uw-map] error processing regions:', e);
@@ -112,30 +118,6 @@ class PfadiUwMap extends HTMLElement {
         regionIdsProperty.some((id: any) => typeof id !== 'string' || id.length === 0)
       ) {
         throw new TypeError('regionIds must be a non-empty Array of non-empty strings');
-      }
-
-      const primaryColorProperty = region['primaryColor'];
-      if (!primaryColorProperty || typeof primaryColorProperty !== 'string' || primaryColorProperty.length === 0) {
-        throw new TypeError('primaryColor must be a non-empty string');
-      }
-
-      const secondaryColor = region['secondaryColor'];
-      if (!secondaryColor || typeof secondaryColor !== 'string' || secondaryColor.length === 0) {
-        throw new TypeError('secondaryColor must be a non-empty string');
-      }
-    }
-  }
-
-  // TODO: Check if color per region / organization is useful.
-  private updateColorsByRegion(regions: Region[]) {
-    this.colorsByRegion.clear();
-
-    for (const region of regions) {
-      for (const regionId of region.regionIds) {
-        this.colorsByRegion.set(regionId, {
-          color: region.secondaryColor,
-          fillColor: region.primaryColor,
-        });
       }
     }
   }
@@ -204,7 +186,7 @@ class PfadiUwMap extends HTMLElement {
               direction: 'center',
             });
           },
-        })
+        }),
       );
 
       const mapFeature = geoJsonLayers.length === 1 ? geoJsonLayers[0] : L.featureGroup(geoJsonLayers);
