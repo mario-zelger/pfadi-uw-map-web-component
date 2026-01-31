@@ -60,12 +60,14 @@ class PfadiUwMap extends HTMLElement {
       maxZoom: 13
     }));
     this.map.setView(L.latLng(46.9, 8.37), 11);
+    console.debug('[pfadi-uw-map] map initialized, features pending:', this.geoJsonFeaturesPerRegion.map(f => f.length));
 
     this.addRegionFeaturesToMap();
     this.selectRegion(this.selectedRegionId);
   }
 
   async attributeChangedCallback(name: string, oldValue: any, newValue: any): Promise<void> {
+    console.debug('[pfadi-uw-map] attributeChangedCallback:', name, 'map ready:', !!this.map);
     if (newValue === oldValue) {
       return;
     }
@@ -76,12 +78,19 @@ class PfadiUwMap extends HTMLElement {
     }
 
     if (name === ATTRIBUTES.REGIONS) {
-      const regions: Region[] = JSON.parse(newValue ?? []);
-      this.ensureRegionsAreValid(regions);
+      console.debug('[pfadi-uw-map] regions attribute value:', newValue);
+      try {
+        const regions: Region[] = JSON.parse(newValue ?? '[]');
+        console.debug('[pfadi-uw-map] parsed regions:', regions.length);
+        this.ensureRegionsAreValid(regions);
 
-      this.updateColorsByRegion(regions);
-      await this.loadFeaturesPerRegion(regions);
-      this.addRegionFeaturesToMap();
+        this.updateColorsByRegion(regions);
+        await this.loadFeaturesPerRegion(regions);
+        console.debug('[pfadi-uw-map] features loaded:', this.geoJsonFeaturesPerRegion.map(f => f.length));
+        this.addRegionFeaturesToMap();
+      } catch (e) {
+        console.error('[pfadi-uw-map] error processing regions:', e);
+      }
     }
   }
 
@@ -136,10 +145,19 @@ class PfadiUwMap extends HTMLElement {
       .map((r) => r.regionIds)
       .map(async (regionIds) => {
         const regionApiUrls = regionIds.map((id) => this.apiStringBuilder.withRegionId(id).build());
-        const regionResponses = await Promise.all(regionApiUrls.map((url) => fetch(url)));
+        console.debug('[pfadi-uw-map] fetching URLs:', regionApiUrls);
+
+        let regionResponses: Response[];
+        try {
+          regionResponses = await Promise.all(regionApiUrls.map((url) => fetch(url)));
+        } catch (e) {
+          console.error('[pfadi-uw-map] fetch failed:', e);
+          return [];
+        }
 
         const features: Feature[] = [];
         for (const r of regionResponses) {
+          console.debug('[pfadi-uw-map] response status:', r.status, r.url);
           if (r.status !== 200) {
             continue;
           }
@@ -147,12 +165,13 @@ class PfadiUwMap extends HTMLElement {
           try {
             const json: any = await r.json();
             if (!json || !json.feature) {
+              console.warn('[pfadi-uw-map] no feature in response:', json);
               continue;
             }
 
             features.push(json.feature);
           } catch (e) {
-            console.error(e);
+            console.error('[pfadi-uw-map] JSON parse error:', e);
           }
         }
 
@@ -163,7 +182,9 @@ class PfadiUwMap extends HTMLElement {
   }
 
   private addRegionFeaturesToMap(): void {
+    console.debug('[pfadi-uw-map] addRegionFeaturesToMap, map ready:', !!this.map, 'regions:', this.geoJsonFeaturesPerRegion.length);
     if (!this.map) {
+      console.warn('[pfadi-uw-map] map not ready, skipping addRegionFeaturesToMap');
       return;
     }
 
