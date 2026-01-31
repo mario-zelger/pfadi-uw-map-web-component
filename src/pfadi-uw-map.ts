@@ -2,10 +2,8 @@ import type { Feature } from 'geojson';
 import type { FeatureGroup, Layer, LeafletEvent, Map as LeafletMap } from 'leaflet';
 import type { LayerColor, LayerStyle, Region, RegionSelectedEventDetail } from './interfaces';
 import { GeoApiStringBuilder } from './utilities/geo-api-string-builder.ts';
-
-// Leaflet is loaded dynamically into the shadow DOM
-// We declare it here to have type information available
-declare const L: typeof import('leaflet');
+import L from 'leaflet';
+import leafletCss from 'leaflet/dist/leaflet.css?inline';
 
 const ATTRIBUTES = {
   REGIONS: 'regions',
@@ -14,7 +12,6 @@ const ATTRIBUTES = {
 
 const CONFIG = {
   TILE_URL: 'https://wmts20.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/{z}/{x}/{y}.jpeg',
-  LEAFLET_VERSION: '1.9.4',
 } as const;
 
 class PfadiUwMap extends HTMLElement {
@@ -49,8 +46,9 @@ class PfadiUwMap extends HTMLElement {
     return [ATTRIBUTES.SELECTED_REGION_ID, ATTRIBUTES.REGIONS];
   }
 
-  async connectedCallback(): Promise<void> {
-    const mapElement = await this.initLeaflet();
+  connectedCallback(): void {
+    console.debug('[pfadi-uw-map] connectedCallback start');
+    const mapElement = this.initLeaflet();
     this.map = new L.Map(mapElement, {
       crs: L.CRS.EPSG3857,
       worldCopyJump: false,
@@ -268,52 +266,20 @@ class PfadiUwMap extends HTMLElement {
     });
   }
 
-  private async initLeaflet(): Promise<HTMLDivElement> {
-    const leafletCdnBaseUrl = `https://unpkg.com/leaflet@${CONFIG.LEAFLET_VERSION}/dist`;
+  private initLeaflet(): HTMLDivElement {
+    const mapElement = document.createElement('div');
+    mapElement.setAttribute('id', 'map');
+    mapElement.style.width = '100%';
+    mapElement.style.height = '100%';
+    mapElement.style.zIndex = '0';
 
-    return new Promise((resolve, reject) => {
-      const mapElement = document.createElement('div');
-      mapElement.setAttribute('id', 'map');
-      mapElement.style.width = '100%';
-      mapElement.style.height = '100%';
-      mapElement.style.zIndex = '0';
+    const styleElement = document.createElement('style');
+    styleElement.textContent = leafletCss;
 
-      const cssLinkElement = document.createElement('link');
-      cssLinkElement.setAttribute('rel', 'stylesheet');
-      cssLinkElement.setAttribute('href', `${leafletCdnBaseUrl}/leaflet.css`);
-      cssLinkElement.setAttribute('integrity', 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=');
-      cssLinkElement.setAttribute('crossorigin', '');
-      const cssLoadedPromise = new Promise((res, rej) => {
-        cssLinkElement.onload = () => res(cssLinkElement);
-        cssLinkElement.onerror = () => rej(new Error(`Could not load Leaflet CSS.`));
-      });
+    this.shadowDom.appendChild(styleElement);
+    this.shadowDom.appendChild(mapElement);
 
-      const scriptElement = document.createElement('script');
-      scriptElement.setAttribute('defer', '');
-      scriptElement.setAttribute('src', `${leafletCdnBaseUrl}/leaflet.js`);
-      scriptElement.setAttribute('integrity', 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=');
-      scriptElement.setAttribute('crossorigin', '');
-      const scriptLoadedPromise = new Promise((res, rej) => {
-        scriptElement.onload = () => {
-          L.Icon.Default.mergeOptions({
-            iconRetinaUrl: `${leafletCdnBaseUrl}/images/marker-icon-2x.png`,
-            iconUrl: `${leafletCdnBaseUrl}/images/marker-icon.png`,
-            shadowUrl: `${leafletCdnBaseUrl}/images/marker-shadow.png`,
-          });
-
-          res(scriptElement);
-        };
-        scriptElement.onerror = () => rej(new Error(`Could not load Leaflet script.`));
-      });
-
-      this.shadowDom.appendChild(mapElement);
-      this.shadowDom.appendChild(cssLinkElement);
-      this.shadowDom.appendChild(scriptElement);
-
-      Promise.all([cssLoadedPromise, scriptLoadedPromise])
-        .then(() => resolve(mapElement))
-        .catch((e) => reject(e));
-    });
+    return mapElement;
   }
 }
 
