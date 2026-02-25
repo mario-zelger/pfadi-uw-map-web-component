@@ -7,7 +7,7 @@ import leafletCss from 'leaflet/dist/leaflet.css?inline';
 
 const ATTRIBUTES = {
   REGIONS: 'regions',
-  SELECTED_REGION_ID: 'selected-region-id',
+  SELECTED_MUNICIPALITY_ID: 'selected-municipality-id',
 } as const;
 
 const CONFIG = {
@@ -16,13 +16,13 @@ const CONFIG = {
 
 class PfadiUwMap extends HTMLElement {
   private selectedMapFeature: FeatureGroup | null = null;
-  private selectedRegionId: string | null = null;
+  private selectedMunicipalityId: string | null = null;
   private map: LeafletMap | null = null;
   private geoJsonFeaturesPerRegion: Feature[][] = [];
 
   private readonly shadowDom: ShadowRoot;
   private readonly apiStringBuilder: GeoApiStringBuilder;
-  private readonly mapFeatureByRegionId: Map<string, FeatureGroup> = new Map<string, FeatureGroup>();
+  private readonly mapFeatureByMunicipalityId: Map<string, FeatureGroup> = new Map<string, FeatureGroup>();
   private readonly defaultColors: LayerColor = { color: '#BB7D5A', fillColor: 'lightgray' };
   private readonly defaultSelectedColors: LayerColor = { color: 'lightgray', fillColor: '#BB7D5A' };
   private readonly defaultStyle: LayerStyle = {
@@ -42,7 +42,7 @@ class PfadiUwMap extends HTMLElement {
   }
 
   static get observedAttributes(): string[] {
-    return [ATTRIBUTES.SELECTED_REGION_ID, ATTRIBUTES.REGIONS];
+    return [ATTRIBUTES.SELECTED_MUNICIPALITY_ID, ATTRIBUTES.REGIONS];
   }
 
   connectedCallback(): void {
@@ -67,7 +67,7 @@ class PfadiUwMap extends HTMLElement {
     );
 
     this.addRegionFeaturesToMap();
-    this.selectRegion(this.selectedRegionId);
+    this.selectRegion(this.selectedMunicipalityId);
   }
 
   async attributeChangedCallback(name: string, oldValue: any, newValue: any): Promise<void> {
@@ -76,9 +76,9 @@ class PfadiUwMap extends HTMLElement {
       return;
     }
 
-    if (name === ATTRIBUTES.SELECTED_REGION_ID) {
-      this.selectedRegionId = newValue;
-      this.selectRegion(this.selectedRegionId);
+    if (name === ATTRIBUTES.SELECTED_MUNICIPALITY_ID) {
+      this.selectedMunicipalityId = newValue;
+      this.selectRegion(this.selectedMunicipalityId);
     }
 
     if (name === ATTRIBUTES.REGIONS) {
@@ -111,22 +111,22 @@ class PfadiUwMap extends HTMLElement {
         throw new TypeError('title must be a non-empty string');
       }
 
-      const regionIdsProperty = region['regionIds'];
+      const municipalityIdsProperty = region['municipalityIds'];
       if (
-        !Array.isArray(regionIdsProperty) ||
-        regionIdsProperty.length === 0 ||
-        regionIdsProperty.some((id: any) => typeof id !== 'string' || id.length === 0)
+        !Array.isArray(municipalityIdsProperty) ||
+        municipalityIdsProperty.length === 0 ||
+        municipalityIdsProperty.some((id: any) => typeof id !== 'string' || id.length === 0)
       ) {
-        throw new TypeError('regionIds must be a non-empty Array of non-empty strings');
+        throw new TypeError('municipalityIds must be a non-empty Array of non-empty strings');
       }
     }
   }
 
   private async loadFeaturesPerRegion(regions: Region[]): Promise<void> {
     const regionFeatureLoadTasks = regions
-      .map((r) => r.regionIds)
-      .map(async (regionIds) => {
-        const regionApiUrls = regionIds.map((id) => this.apiStringBuilder.withRegionId(id).build());
+      .map((r) => r.municipalityIds)
+      .map(async (municipalityIds) => {
+        const regionApiUrls = municipalityIds.map((id) => this.apiStringBuilder.withMunicipalityId(id).build());
         console.debug('[pfadi-uw-map] fetching URLs:', regionApiUrls);
 
         let regionResponses: Response[];
@@ -170,7 +170,7 @@ class PfadiUwMap extends HTMLElement {
       return;
     }
 
-    this.mapFeatureByRegionId.clear();
+    this.mapFeatureByMunicipalityId.clear();
     const renderer = L.svg({ padding: 4 });
 
     for (const regionFeatures of this.geoJsonFeaturesPerRegion) {
@@ -196,10 +196,11 @@ class PfadiUwMap extends HTMLElement {
           return;
         }
 
+        // feature.id equals the municipalityId
         this.selectRegion(feature.id, e.target);
         this.dispatchEvent(
           new CustomEvent<RegionSelectedEventDetail>('region-selected', {
-            detail: { regionId: feature.id },
+            detail: { municipalityId: feature.id },
             bubbles: true,
             composed: true,
           }),
@@ -211,19 +212,19 @@ class PfadiUwMap extends HTMLElement {
           continue;
         }
 
-        this.mapFeatureByRegionId.set(feature.id as string, mapFeature);
+        this.mapFeatureByMunicipalityId.set(feature.id as string, mapFeature);
       }
 
       mapFeature.addTo(this.map);
     }
   }
 
-  private selectRegion(regionId: string | null, targetMapFeature?: FeatureGroup): void {
+  private selectRegion(municipalityId: string | null, targetMapFeature?: FeatureGroup): void {
     if (!this.map) {
       return;
     }
 
-    const newSelectedFeature = targetMapFeature ?? this.mapFeatureByRegionId.get(regionId ?? '');
+    const newSelectedFeature = targetMapFeature ?? this.mapFeatureByMunicipalityId.get(municipalityId ?? '');
     if (!newSelectedFeature) {
       if (this.selectedMapFeature) {
         // Reset style of previously selected feature as no new feature is selected

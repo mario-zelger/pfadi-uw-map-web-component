@@ -72,7 +72,7 @@ The component emits the following events:
 
 ```typescript
 myMap.on('region-selected', (e: CustomEvent<RegionSelectedEventDetail>) => {
-    console.log(e.detail.regionId); // The region ID of the selected region
+    console.log(e.detail.municipalityId); // The region ID of the selected region
 });
 ```
 
@@ -81,7 +81,7 @@ myMap.on('region-selected', (e: CustomEvent<RegionSelectedEventDetail>) => {
 A provider of Swiss GeoJSON data is [swisstopo](https://www.swisstopo.admin.ch/de).
 They provide a [dataset](https://geo.ld.admin.ch/data/swissBOUNDARIES3D) with information about the municipalities of Switzerland.
 
-The BFS-Municipality Number (Gemeindenummer) is used as the unique identifier (`regionId`) for each municipality. Based on that the GeoJSON
+The BFS-Municipality Number (Gemeindenummer) is used as the unique identifier (`municipalityId`) for each municipality. Based on that the GeoJSON
 data is loaded via the [API](https://api3.geo.admin.ch/index.html).
 
 The BFS-Municipality Numbers can be found

@@ -2,7 +2,7 @@ import type { GeometryFormat, SpatialReferenceId } from '../interfaces';
 
 export class GeoApiStringBuilder {
   private baseUrl: string = '';
-  private regionId: string = '';
+  private municipalityId: string = '';
   private geometryFormat: GeometryFormat | null = null;
   private spatialReference: SpatialReferenceId | null = null;
 
@@ -11,8 +11,8 @@ export class GeoApiStringBuilder {
     return this;
   }
 
-  withRegionId(regionId: string): GeoApiStringBuilder {
-    this.regionId = regionId;
+  withMunicipalityId(municipalityId: string): GeoApiStringBuilder {
+    this.municipalityId = municipalityId;
     return this;
   }
 
@@ -27,7 +27,7 @@ export class GeoApiStringBuilder {
   }
 
   build(): string {
-    return `${this.baseUrl}/${this.regionId}?geometryFormat=${this.geometryFormat ?? ''}&sr=${this.spatialReference ?? ''}`;
+    return `${this.baseUrl}/${this.municipalityId}?geometryFormat=${this.geometryFormat ?? ''}&sr=${this.spatialReference ?? ''}`;
   }
 }
 
