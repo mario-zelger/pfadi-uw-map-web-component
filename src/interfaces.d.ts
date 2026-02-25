@@ -12,8 +12,6 @@ export interface Region {
   id: string;
   title: string;
   municipalityIds: string[];
-  primaryColor: string;
-  secondaryColor: string;
 }
 
 export interface RegionSelectedEventDetail {
