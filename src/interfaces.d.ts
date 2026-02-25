@@ -9,6 +9,7 @@ export interface LayerStyle extends LayerColor {
 }
 
 export interface Region {
+  id: string;
   title: string;
   municipalityIds: string[];
   primaryColor: string;
@@ -16,7 +17,7 @@ export interface Region {
 }
 
 export interface RegionSelectedEventDetail {
-  municipalityId: string;
+  regionId: string;
 }
 
 export type GeometryFormat = 'geojson' | 'esrijson';

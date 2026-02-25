@@ -1,5 +1,4 @@
-import type { Feature } from 'geojson';
-import type { FeatureGroup, Layer, LeafletEvent, Map as LeafletMap } from 'leaflet';
+import type { Layer, LeafletEvent, Map as LeafletMap } from 'leaflet';
 import L from 'leaflet';
 import type { LayerColor, LayerStyle, Region, RegionSelectedEventDetail } from './interfaces';
 import { GeoApiStringBuilder } from './utilities/geo-api-string-builder.ts';
@@ -7,7 +6,7 @@ import leafletCss from 'leaflet/dist/leaflet.css?inline';
 
 const ATTRIBUTES = {
   REGIONS: 'regions',
-  SELECTED_MUNICIPALITY_ID: 'selected-municipality-id',
+  SELECTED_REGION_ID: 'selected-region-id',
 } as const;
 
 const CONFIG = {
@@ -15,14 +14,16 @@ const CONFIG = {
 } as const;
 
 class PfadiUwMap extends HTMLElement {
-  private selectedMapFeature: FeatureGroup | null = null;
-  private selectedMunicipalityId: string | null = null;
+  private selectedRegionId: string | null = null;
   private map: LeafletMap | null = null;
-  private geoJsonFeaturesPerRegion: Feature[][] = [];
 
   private readonly shadowDom: ShadowRoot;
   private readonly apiStringBuilder: GeoApiStringBuilder;
-  private readonly mapFeatureByMunicipalityId: Map<string, FeatureGroup> = new Map<string, FeatureGroup>();
+
+  private readonly regionById: Map<string, Region> = new Map();
+  private readonly layerByMunicipalityId: Map<string, L.GeoJSON> = new Map();
+  private readonly regionIdsByMunicipalityId: Map<string, string[]> = new Map();
+
   private readonly defaultColors: LayerColor = { color: '#BB7D5A', fillColor: 'lightgray' };
   private readonly defaultSelectedColors: LayerColor = { color: 'lightgray', fillColor: '#BB7D5A' };
   private readonly defaultStyle: LayerStyle = {
@@ -42,7 +43,7 @@ class PfadiUwMap extends HTMLElement {
   }
 
   static get observedAttributes(): string[] {
-    return [ATTRIBUTES.SELECTED_MUNICIPALITY_ID, ATTRIBUTES.REGIONS];
+    return [ATTRIBUTES.SELECTED_REGION_ID, ATTRIBUTES.REGIONS];
   }
 
   connectedCallback(): void {
@@ -61,13 +62,13 @@ class PfadiUwMap extends HTMLElement {
       }),
     );
     this.map.setView(L.latLng(46.9, 8.37), 11);
-    console.debug(
-      '[pfadi-uw-map] map initialized, features pending:',
-      this.geoJsonFeaturesPerRegion.map((f) => f.length),
-    );
+    console.debug('[pfadi-uw-map] map initialized');
 
-    this.addRegionFeaturesToMap();
-    this.selectRegion(this.selectedMunicipalityId);
+    // Add layers that were created before the map was ready
+    for (const layer of this.layerByMunicipalityId.values()) {
+      layer.addTo(this.map);
+    }
+    this.selectRegion(this.selectedRegionId);
   }
 
   async attributeChangedCallback(name: string, oldValue: any, newValue: any): Promise<void> {
@@ -76,9 +77,9 @@ class PfadiUwMap extends HTMLElement {
       return;
     }
 
-    if (name === ATTRIBUTES.SELECTED_MUNICIPALITY_ID) {
-      this.selectedMunicipalityId = newValue;
-      this.selectRegion(this.selectedMunicipalityId);
+    if (name === ATTRIBUTES.SELECTED_REGION_ID) {
+      this.selectedRegionId = newValue;
+      this.selectRegion(this.selectedRegionId);
     }
 
     if (name === ATTRIBUTES.REGIONS) {
@@ -88,12 +89,8 @@ class PfadiUwMap extends HTMLElement {
         console.debug('[pfadi-uw-map] parsed regions:', regions.length);
         this.ensureRegionsAreValid(regions);
 
-        await this.loadFeaturesPerRegion(regions);
-        console.debug(
-          '[pfadi-uw-map] features loaded:',
-          this.geoJsonFeaturesPerRegion.map((f) => f.length),
-        );
-        this.addRegionFeaturesToMap();
+        await this.loadRegions(regions);
+        console.debug('[pfadi-uw-map] regions loaded, layers:', this.layerByMunicipalityId.size);
       } catch (e) {
         console.error('[pfadi-uw-map] error processing regions:', e);
       }
@@ -105,7 +102,19 @@ class PfadiUwMap extends HTMLElement {
       throw new TypeError('regions must be an Array');
     }
 
+    const seenIds = new Set<string>();
+
     for (const region of regions) {
+      const idProperty = region['id'];
+      if (!idProperty || typeof idProperty !== 'string' || idProperty.length === 0) {
+        throw new TypeError('id must be a non-empty string');
+      }
+
+      if (seenIds.has(idProperty)) {
+        throw new TypeError(`duplicate region id: ${idProperty}`);
+      }
+      seenIds.add(idProperty);
+
       const titleProperty = region['title'];
       if (!titleProperty || typeof titleProperty !== 'string' || titleProperty.length === 0) {
         throw new TypeError('title must be a non-empty string');
@@ -122,60 +131,53 @@ class PfadiUwMap extends HTMLElement {
     }
   }
 
-  private async loadFeaturesPerRegion(regions: Region[]): Promise<void> {
-    const regionFeatureLoadTasks = regions
-      .map((r) => r.municipalityIds)
-      .map(async (municipalityIds) => {
-        const regionApiUrls = municipalityIds.map((id) => this.apiStringBuilder.withMunicipalityId(id).build());
-        console.debug('[pfadi-uw-map] fetching URLs:', regionApiUrls);
+  private async loadRegions(regions: Region[]): Promise<void> {
+    this.regionById.clear();
+    this.regionIdsByMunicipalityId.clear();
 
-        let regionResponses: Response[];
-        try {
-          regionResponses = await Promise.all(regionApiUrls.map((url) => fetch(url)));
-        } catch (e) {
-          console.error('[pfadi-uw-map] fetch failed:', e);
-          return [];
+    // Clear existing layers
+    for (const layer of this.layerByMunicipalityId.values()) {
+      layer.remove();
+    }
+    this.layerByMunicipalityId.clear();
+
+    // Build lookup maps
+    for (const region of regions) {
+      this.regionById.set(region.id, region);
+      for (const municipalityId of region.municipalityIds) {
+        const existing = this.regionIdsByMunicipalityId.get(municipalityId);
+        if (existing) {
+          existing.push(region.id);
+        } else {
+          this.regionIdsByMunicipalityId.set(municipalityId, [region.id]);
         }
-
-        const features: Feature[] = [];
-        for (const r of regionResponses) {
-          console.debug('[pfadi-uw-map] response status:', r.status, r.url);
-          if (r.status !== 200) {
-            continue;
-          }
-
-          try {
-            const json: any = await r.json();
-            if (!json || !json.feature) {
-              console.warn('[pfadi-uw-map] no feature in response:', json);
-              continue;
-            }
-
-            features.push(json.feature);
-          } catch (e) {
-            console.error('[pfadi-uw-map] JSON parse error:', e);
-          }
-        }
-
-        return features;
-      });
-
-    this.geoJsonFeaturesPerRegion = await Promise.all(regionFeatureLoadTasks);
-  }
-
-  private addRegionFeaturesToMap(): void {
-    console.debug('[pfadi-uw-map] addRegionFeaturesToMap, map ready:', !!this.map, 'regions:', this.geoJsonFeaturesPerRegion.length);
-    if (!this.map) {
-      console.warn('[pfadi-uw-map] map not ready, skipping addRegionFeaturesToMap');
-      return;
+      }
     }
 
-    this.mapFeatureByMunicipalityId.clear();
+    // Fetch unique municipalities and create layers
+    const uniqueMunicipalityIds = [...new Set(regions.flatMap((r) => r.municipalityIds))];
+    console.debug('[pfadi-uw-map] unique municipalities to fetch:', uniqueMunicipalityIds.length);
+
     const renderer = L.svg({ padding: 4 });
 
-    for (const regionFeatures of this.geoJsonFeaturesPerRegion) {
-      const geoJsonLayers = regionFeatures.map((feature) =>
-        L.geoJSON(feature, {
+    const fetchTasks = uniqueMunicipalityIds.map(async (municipalityId) => {
+      const url = this.apiStringBuilder.withMunicipalityId(municipalityId).build();
+      console.debug('[pfadi-uw-map] fetching URL:', url);
+
+      try {
+        const response = await fetch(url);
+        console.debug('[pfadi-uw-map] response status:', response.status, response.url);
+        if (response.status !== 200) {
+          return;
+        }
+
+        const json: any = await response.json();
+        if (!json || !json.feature) {
+          console.warn('[pfadi-uw-map] no feature in response:', json);
+          return;
+        }
+
+        const layer = L.geoJSON(json.feature, {
           // @ts-ignore
           renderer,
           style: (_) => this.defaultStyle,
@@ -186,86 +188,107 @@ class PfadiUwMap extends HTMLElement {
               direction: 'center',
             });
           },
-        }),
-      );
+        });
 
-      const mapFeature = geoJsonLayers.length === 1 ? geoJsonLayers[0] : L.featureGroup(geoJsonLayers);
-      mapFeature.on('click', (e: LeafletEvent) => {
-        const feature = (e as any).propagatedFrom?.feature;
-        if (!feature) {
-          return;
+        layer.on('click', (_e: LeafletEvent) => {
+          const regionId = this.resolveSmallestRegion(municipalityId);
+          if (!regionId) {
+            return;
+          }
+
+          this.selectRegion(regionId);
+          this.dispatchEvent(
+            new CustomEvent<RegionSelectedEventDetail>('region-selected', {
+              detail: { regionId },
+              bubbles: true,
+              composed: true,
+            }),
+          );
+        });
+
+        this.layerByMunicipalityId.set(municipalityId, layer);
+        if (this.map) {
+          layer.addTo(this.map);
         }
-
-        // feature.id equals the municipalityId
-        this.selectRegion(feature.id, e.target);
-        this.dispatchEvent(
-          new CustomEvent<RegionSelectedEventDetail>('region-selected', {
-            detail: { municipalityId: feature.id },
-            bubbles: true,
-            composed: true,
-          }),
-        );
-      });
-
-      for (const feature of regionFeatures) {
-        if (!feature.id) {
-          continue;
-        }
-
-        this.mapFeatureByMunicipalityId.set(feature.id as string, mapFeature);
+      } catch (e) {
+        console.error('[pfadi-uw-map] fetch/parse error for municipality', municipalityId, e);
       }
+    });
 
-      mapFeature.addTo(this.map);
-    }
+    await Promise.all(fetchTasks);
   }
 
-  private selectRegion(municipalityId: string | null, targetMapFeature?: FeatureGroup): void {
+  private resolveSmallestRegion(municipalityId: string): string | null {
+    const regionIds = this.regionIdsByMunicipalityId.get(municipalityId);
+    if (!regionIds || regionIds.length === 0) {
+      return null;
+    }
+
+    let smallestRegionId = regionIds[0];
+    let smallestSize = this.regionById.get(smallestRegionId)?.municipalityIds.length ?? Infinity;
+
+    for (let i = 1; i < regionIds.length; i++) {
+      const region = this.regionById.get(regionIds[i]);
+      if (region && region.municipalityIds.length < smallestSize) {
+        smallestSize = region.municipalityIds.length;
+        smallestRegionId = regionIds[i];
+      }
+    }
+
+    return smallestRegionId;
+  }
+
+  private selectRegion(regionId: string | null): void {
     if (!this.map) {
       return;
     }
 
-    const newSelectedFeature = targetMapFeature ?? this.mapFeatureByMunicipalityId.get(municipalityId ?? '');
-    if (!newSelectedFeature) {
-      if (this.selectedMapFeature) {
-        // Reset style of previously selected feature as no new feature is selected
-        this.setFeatureStyle(this.selectedMapFeature, this.defaultStyle);
+    // Reset previous region's layers to default style
+    if (this.selectedRegionId) {
+      const previousRegion = this.regionById.get(this.selectedRegionId);
+      if (previousRegion) {
+        for (const mId of previousRegion.municipalityIds) {
+          const layer = this.layerByMunicipalityId.get(mId);
+          if (layer) {
+            this.setLayerStyle(layer, this.defaultStyle);
+          }
+        }
       }
+    }
 
+    this.selectedRegionId = regionId;
+    const newRegion = regionId ? this.regionById.get(regionId) : undefined;
+    if (!newRegion) {
       return;
     }
 
-    if (this.selectedMapFeature === newSelectedFeature) {
-      // Feature is already selected, nothing to do
-      return;
-    }
-
-    if (this.selectedMapFeature) {
-      // Reset style of previously selected feature
-      this.setFeatureStyle(this.selectedMapFeature, this.defaultStyle);
-    }
-
-    this.selectedMapFeature = newSelectedFeature;
-    const selectedColors = this.defaultSelectedColors;
-    this.setFeatureStyle(this.selectedMapFeature, {
+    // Apply selected style to all municipality layers of the new region
+    const selectedStyle: LayerStyle = {
       ...this.defaultStyle,
-      color: selectedColors.color,
-      fillColor: selectedColors.fillColor,
-    });
+      color: this.defaultSelectedColors.color,
+      fillColor: this.defaultSelectedColors.fillColor,
+    };
 
-    this.selectedMapFeature.bringToFront();
-    const bounds = this.selectedMapFeature.getBounds();
-    if (!bounds.isValid()) {
-      return;
+    const bounds = L.latLngBounds([]);
+
+    for (const mId of newRegion.municipalityIds) {
+      const layer = this.layerByMunicipalityId.get(mId);
+      if (layer) {
+        this.setLayerStyle(layer, selectedStyle);
+        layer.bringToFront();
+        bounds.extend(layer.getBounds());
+      }
     }
 
-    const center = bounds.getCenter();
-    this.map.panTo(center, { animate: true });
+    if (bounds.isValid()) {
+      this.map.panTo(bounds.getCenter(), { animate: true });
+    }
   }
 
-  private setFeatureStyle(feature: FeatureGroup, style: LayerStyle): void {
-    feature.eachLayer((layer: Layer) => {
-      if (typeof (layer as any).setStyle === 'function') {
-        (layer as any).setStyle(style);
+  private setLayerStyle(layer: L.GeoJSON, style: LayerStyle): void {
+    layer.eachLayer((child: Layer) => {
+      if (typeof (child as any).setStyle === 'function') {
+        (child as any).setStyle(style);
       }
     });
   }

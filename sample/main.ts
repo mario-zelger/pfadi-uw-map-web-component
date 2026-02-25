@@ -12,31 +12,31 @@ window.onload = () => {
 
     const regionInfos = [
       {
-        // Beckenried
+        id: 'beckenried',
         title: 'Pfadi Isenringen Beckenried',
         municipalityIds: ['1501', '1504'],
       },
-      // Buochs
       {
+        id: 'buochs',
         title: 'Pfadi St. Martin Buochs',
         municipalityIds: ['1502', '1505'],
       },
-      // Dallenwil
       {
+        id: 'dallenwil',
         title: 'Pfadi St. Laurentius Dallenwil',
         municipalityIds: ['1503'],
       },
-      // Stans
       {
+        id: 'stans',
         title: 'Pfadi Winkelried Stans-Ennetmoos',
         municipalityIds: ['1509', '1506'],
       },
     ];
     map.setAttribute('regions', JSON.stringify(regionInfos));
-    // setTimeout(() => map.setAttribute('selected-municipality-id', '1505'), 500);
+    // setTimeout(() => map.setAttribute('selected-region-id', 'buochs'), 500);
 
     map.addEventListener('region-selected', (e: any) => {
-      console.log('Now active:', e.detail.municipalityId);
+      console.log('Now active:', e.detail.regionId);
     });
   });
 };
