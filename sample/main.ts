@@ -38,5 +38,16 @@ window.onload = () => {
     map.addEventListener('region-selected', (e: any) => {
       console.log('Now active:', e.detail.regionId);
     });
+
+    // // Simulate DOM move after 3s: remove element, re-insert into a wrapper
+    // setTimeout(() => {
+    //   console.log('[test] simulating DOM move...');
+    //   const wrapper = document.createElement('div');
+    //   wrapper.style.width = '100%';
+    //   wrapper.style.height = '100%';
+    //   map.parentElement!.appendChild(wrapper);
+    //   wrapper.appendChild(map);
+    //   console.log('[test] DOM move complete — map should still work');
+    // }, 3000);
   });
 };

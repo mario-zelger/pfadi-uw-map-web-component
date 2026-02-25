@@ -48,6 +48,11 @@ class PfadiUwMap extends HTMLElement {
 
   connectedCallback(): void {
     console.debug('[pfadi-uw-map] connectedCallback start');
+
+    if (this.map) {
+      return;
+    }
+
     const mapElement = this.initLeaflet();
     this.map = new L.Map(mapElement, {
       crs: L.CRS.EPSG3857,
