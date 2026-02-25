@@ -83,8 +83,7 @@ class PfadiUwMap extends HTMLElement {
     }
 
     if (name === ATTRIBUTES.SELECTED_REGION_ID) {
-      this.selectedRegionId = newValue;
-      this.selectRegion(this.selectedRegionId);
+      this.selectRegion(newValue);
     }
 
     if (name === ATTRIBUTES.REGIONS) {
@@ -244,13 +243,16 @@ class PfadiUwMap extends HTMLElement {
   }
 
   private selectRegion(regionId: string | null): void {
+    const previousRegionId = this.selectedRegionId;
+    this.selectedRegionId = regionId;
+
     if (!this.map) {
       return;
     }
 
     // Reset previous region's layers to default style
-    if (this.selectedRegionId) {
-      const previousRegion = this.regionById.get(this.selectedRegionId);
+    if (previousRegionId) {
+      const previousRegion = this.regionById.get(previousRegionId);
       if (previousRegion) {
         for (const mId of previousRegion.municipalityIds) {
           const layer = this.layerByMunicipalityId.get(mId);
@@ -260,8 +262,6 @@ class PfadiUwMap extends HTMLElement {
         }
       }
     }
-
-    this.selectedRegionId = regionId;
     const newRegion = regionId ? this.regionById.get(regionId) : undefined;
     if (!newRegion) {
       return;
