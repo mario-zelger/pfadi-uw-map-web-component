@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
       build: {
         target: 'es2020',
         lib: {
-          entry: resolve(__dirname, 'src/pfadi-uw-map.ts'),
+          entry: resolve(import.meta.dirname, 'src/pfadi-uw-map.ts'),
           name: 'PfadiUwMap',
           fileName: 'pfadi-uw-map',
           formats: ['es'],
@@ -15,16 +15,12 @@ export default defineConfig(({ mode }) => {
         outDir: 'dist',
         emptyOutDir: true,
         minify: false,
-        rollupOptions: {
+        rolldownOptions: {
           output: {
-            inlineDynamicImports: true,
             format: 'es',
+            codeSplitting: false,
           },
         },
-      },
-      esbuild: {
-        target: 'es2020',
-        minifyIdentifiers: false,
       },
     };
   }
@@ -34,31 +30,19 @@ export default defineConfig(({ mode }) => {
       build: {
         target: 'es2017',
         lib: {
-          entry: resolve(__dirname, 'src/pfadi-uw-map.ts'),
+          entry: resolve(import.meta.dirname, 'src/pfadi-uw-map.ts'),
           name: 'PfadiUwMap',
           fileName: 'pfadi-uw-map.min',
           formats: ['es'],
         },
         outDir: 'dist',
         emptyOutDir: false,
-        minify: 'esbuild',
-        rollupOptions: {
-          output: {
-            inlineDynamicImports: true,
-            generatedCode: {
-              constBindings: true,
-            },
-            compact: true,
-          },
+        minify: true,
+        rolldownOptions: {
           treeshake: {
-            preset: 'smallest',
             moduleSideEffects: false,
           },
         },
-      },
-      esbuild: {
-        target: 'es2017',
-        legalComments: 'none',
       },
     };
   }
