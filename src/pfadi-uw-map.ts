@@ -186,8 +186,9 @@ class PfadiUwMap extends HTMLElement {
           renderer,
           style: (_) => this.defaultStyle,
           onEachFeature: (feature: any, layer: any) => {
-            const nm = feature.properties.label;
-            layer.bindTooltip(nm, {
+            const tooltipContent = document.createElement('span');
+            tooltipContent.textContent = feature.properties.label ?? '';
+            layer.bindTooltip(tooltipContent, {
               permanent: true,
               direction: 'center',
             });
