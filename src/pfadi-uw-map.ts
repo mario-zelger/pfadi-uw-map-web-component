@@ -128,9 +128,9 @@ class PfadiUwMap extends HTMLElement {
       if (
         !Array.isArray(municipalityIdsProperty) ||
         municipalityIdsProperty.length === 0 ||
-        municipalityIdsProperty.some((id: any) => typeof id !== 'string' || id.length === 0)
+        municipalityIdsProperty.some((id: any) => typeof id !== 'string' || !/^\d{1,6}$/.test(id))
       ) {
-        throw new TypeError('municipalityIds must be a non-empty Array of non-empty strings');
+        throw new TypeError('municipalityIds must be a non-empty Array of numeric BFS IDs (1-6 digits)');
       }
     }
   }
