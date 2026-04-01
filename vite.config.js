@@ -2,6 +2,14 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig(({ mode }) => {
+  const dropConsoleFunctions = {
+    compress: {
+      treeshake: {
+        manualPureFunctions: ['console.log', 'console.debug'],
+      },
+    },
+  };
+
   if (mode === 'full') {
     return {
       build: {
@@ -19,6 +27,11 @@ export default defineConfig(({ mode }) => {
           output: {
             format: 'es',
             codeSplitting: false,
+            minify: {
+              ...dropConsoleFunctions,
+              mangle: false,
+              codegen: false,
+            },
           },
         },
       },
@@ -41,6 +54,9 @@ export default defineConfig(({ mode }) => {
         rolldownOptions: {
           treeshake: {
             moduleSideEffects: false,
+          },
+          output: {
+            minify: dropConsoleFunctions,
           },
         },
       },
