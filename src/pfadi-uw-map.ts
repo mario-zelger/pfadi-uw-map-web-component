@@ -127,55 +127,55 @@ class PfadiUwMap extends HTMLElement {
     const seenIds = new Set<string>();
 
     for (const region of regions) {
-      const idProperty = region['id'];
-      if (!idProperty || typeof idProperty !== 'string' || idProperty.length === 0) {
+      const regionId = region['id'];
+      if (!regionId || typeof regionId !== 'string' || regionId.length === 0) {
         throw new TypeError('id must be a non-empty string');
       }
 
-      if (seenIds.has(idProperty)) {
-        throw new TypeError(`duplicate region id: ${idProperty}`);
+      if (seenIds.has(regionId)) {
+        throw new TypeError(`duplicate region id: ${regionId}`);
       }
-      seenIds.add(idProperty);
+      seenIds.add(regionId);
 
-      const titleProperty = region['title'];
-      if (!titleProperty || typeof titleProperty !== 'string' || titleProperty.length === 0) {
+      const title = region['title'];
+      if (!title || typeof title !== 'string' || title.length === 0) {
         throw new TypeError('title must be a non-empty string');
       }
 
-      const municipalityIdsProperty = region['municipalityIds'];
-      if (
-        !Array.isArray(municipalityIdsProperty) ||
-        municipalityIdsProperty.length === 0 ||
-        municipalityIdsProperty.some((id: any) => typeof id !== 'string' || !/^\d{1,6}$/.test(id))
-      ) {
-        throw new TypeError('municipalityIds must be a non-empty Array of numeric BFS IDs (1-6 digits)');
+      if (this.displayMode === 'regions') {
+        const municipalityIds = region['municipalityIds'];
+        if (!Array.isArray(municipalityIds) || municipalityIds.some((id: any) => typeof id !== 'string' || !/^\d{1,6}$/.test(id))) {
+          throw new TypeError('municipalityIds must be an Array of numeric BFS IDs (1-6 digits)');
+        }
       }
 
-      const scoutingHome = region['scoutingHome'];
-      if (scoutingHome) {
-        if (typeof scoutingHome !== 'object') {
-          throw new TypeError('scoutingHome must be an object');
-        }
+      if (this.displayMode === 'scouting-homes') {
+        const scoutingHome = region['scoutingHome'];
+        if (scoutingHome) {
+          if (typeof scoutingHome !== 'object') {
+            throw new TypeError('scoutingHome must be an object');
+          }
 
-        if (typeof scoutingHome.location !== 'object') {
-          throw new TypeError('scoutingHome.location must be an object');
-        }
+          if (typeof scoutingHome.location !== 'object') {
+            throw new TypeError('scoutingHome.location must be an object');
+          }
 
-        const { latitude, longitude } = scoutingHome.location;
-        if (typeof latitude !== 'number' || latitude < -90 || latitude > 90) {
-          throw new TypeError('scoutingHome.location.latitude must be a number in range -90..90');
-        }
+          const { latitude, longitude } = scoutingHome.location;
+          if (typeof latitude !== 'number' || latitude < -90 || latitude > 90) {
+            throw new TypeError('scoutingHome.location.latitude must be a number in range -90..90');
+          }
 
-        if (typeof longitude !== 'number' || longitude < -180 || longitude > 180) {
-          throw new TypeError('scoutingHome.location.longitude must be a number in range -180..180');
-        }
+          if (typeof longitude !== 'number' || longitude < -180 || longitude > 180) {
+            throw new TypeError('scoutingHome.location.longitude must be a number in range -180..180');
+          }
 
-        if (scoutingHome.address !== undefined && typeof scoutingHome.address !== 'string') {
-          throw new TypeError('scoutingHome.address must be a string');
-        }
+          if (scoutingHome.address !== undefined && typeof scoutingHome.address !== 'string') {
+            throw new TypeError('scoutingHome.address must be a string');
+          }
 
-        if (scoutingHome.linkWebsite !== undefined && typeof scoutingHome.linkWebsite !== 'string') {
-          throw new TypeError('scoutingHome.linkWebsite must be a string');
+          if (scoutingHome.linkWebsite !== undefined && typeof scoutingHome.linkWebsite !== 'string') {
+            throw new TypeError('scoutingHome.linkWebsite must be a string');
+          }
         }
       }
     }
@@ -199,12 +199,16 @@ class PfadiUwMap extends HTMLElement {
     // Build lookup maps
     for (const region of regions) {
       this.regionById.set(region.id, region);
-      for (const municipalityId of region.municipalityIds) {
-        const existing = this.regionIdsByMunicipalityId.get(municipalityId);
-        if (existing) {
-          existing.push(region.id);
-        } else {
-          this.regionIdsByMunicipalityId.set(municipalityId, [region.id]);
+
+      // region.municipalityIds is only ensured to be present in the 'regions' display mode
+      if (this.displayMode === 'regions') {
+        for (const municipalityId of region.municipalityIds) {
+          const existing = this.regionIdsByMunicipalityId.get(municipalityId);
+          if (existing) {
+            existing.push(region.id);
+          } else {
+            this.regionIdsByMunicipalityId.set(municipalityId, [region.id]);
+          }
         }
       }
     }
