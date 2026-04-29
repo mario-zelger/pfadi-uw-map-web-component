@@ -15,6 +15,11 @@ window.onload = () => {
         id: 'beckenried',
         title: 'Pfadi Isenringen Beckenried',
         municipalityIds: ['1501', '1504'],
+        scoutingHome: {
+          location: { latitude: 46.9646, longitude: 8.4764 },
+          address: 'Pfadiheim Isenringen, 6375 Beckenried',
+          linkWebsite: 'https://www.isenringen.ch/pfadihuette',
+        },
       },
       {
         id: 'buochs',
@@ -30,13 +35,27 @@ window.onload = () => {
         id: 'stans',
         title: 'Pfadi Winkelried Stans-Ennetmoos',
         municipalityIds: ['1509', '1506'],
+        scoutingHome: {
+          location: { latitude: 46.9689, longitude: 8.3622 },
+          address: 'Pfadiheim Stans, 6370 Stans',
+          linkWebsite: 'https://winkuriaed.ch/pfadiheim/',
+        },
       },
     ];
     map.setAttribute('regions', JSON.stringify(regionInfos));
     // setTimeout(() => map.setAttribute('selected-region-id', 'buochs'), 500);
 
     map.addEventListener('region-selected', (e: any) => {
-      console.log('Now active:', e.detail.regionId);
+      console.log('Region selected:', e.detail.regionId);
+    });
+
+    map.addEventListener('scouting-home-selected', (e: any) => {
+      console.log('Scouting home selected:', e.detail.regionId);
+    });
+
+    const displayModeSelect = document.getElementById('display-mode') as HTMLSelectElement;
+    displayModeSelect.addEventListener('change', () => {
+      map.setAttribute('display-mode', displayModeSelect.value);
     });
 
     // // Simulate DOM move after 3s: remove element, re-insert into a wrapper

@@ -12,9 +12,23 @@ export interface Region {
   id: string;
   title: string;
   municipalityIds: string[];
+  scoutingHome?: ScoutingHome;
+}
+
+export interface ScoutingHome {
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  address?: string;
+  linkWebsite?: string;
 }
 
 export interface RegionSelectedEventDetail {
+  regionId: string;
+}
+
+export interface ScoutingHomeSelectedEventDetail {
   regionId: string;
 }
 

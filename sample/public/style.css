@@ -8,6 +8,10 @@ main {
     padding: 2em;
 }
 
+div.controls {
+    margin-bottom: 1em;
+}
+
 section.map-section {
     display: flex;
     justify-content: center;
