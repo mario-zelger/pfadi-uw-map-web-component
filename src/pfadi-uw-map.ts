@@ -359,7 +359,7 @@ class PfadiUwMap extends HTMLElement {
             link.href = url.href;
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
-            link.textContent = 'Webseite';
+            link.textContent = 'Infos & Vermietung';
 
             popupContent.appendChild(link);
           }
