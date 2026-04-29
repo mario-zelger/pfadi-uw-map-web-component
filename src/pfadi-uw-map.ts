@@ -72,7 +72,7 @@ class PfadiUwMap extends HTMLElement {
       L.tileLayer(CONFIG.TILE_URL, {
         keepBuffer: 20,
         minZoom: 11,
-        maxZoom: 13,
+        maxZoom: 19,
       }),
     );
     this.map.setView(L.latLng(46.9, 8.37), 11);
@@ -395,6 +395,8 @@ class PfadiUwMap extends HTMLElement {
 
     const showMarkers = this.displayMode === 'scouting-homes';
     const showMunicipalities = this.displayMode === 'regions';
+
+    this.map.setMaxZoom(showMarkers ? 19 : 13);
 
     for (const layer of this.layerByMunicipalityId.values()) {
       if (showMunicipalities) {
