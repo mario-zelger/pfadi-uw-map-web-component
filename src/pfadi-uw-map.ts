@@ -66,7 +66,13 @@ class PfadiUwMap extends HTMLElement {
     this.map = new L.Map(mapElement, {
       crs: L.CRS.EPSG3857,
       worldCopyJump: false,
+      // Size changes are tracked by the ResizeObserver below
+      trackResize: false,
     });
+
+    // Leaflet only re-measures its container on window resize. If the map is initialized while hidden,
+    // it stays at 0x0 and only loads a few tiles once shown, so re-measure on every size change.
+    new ResizeObserver(() => this.map?.invalidateSize({ debounceMoveend: true })).observe(mapElement);
 
     this.map.addLayer(
       L.tileLayer(CONFIG.TILE_URL, {
