@@ -1,0 +1,48 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits", ":timezone(Europe/Zurich)"],
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "update-lockfile",
+  "minimumReleaseAge": "14 days",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on the first day of the month"]
+  },
+  "packageRules": [
+    {
+      "description": "Group non-major dev tooling updates into a single PR",
+      "groupName": "dev tooling",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["!leaflet", "!@types/leaflet", "!vite"]
+    },
+    {
+      "description": "Leaflet is bundled into dist/: updates should lead to a patch release",
+      "groupName": "leaflet",
+      "matchPackageNames": ["leaflet", "@types/leaflet"],
+      "semanticCommitType": "fix"
+    },
+    {
+      "description": "Vite produces dist/: updates should lead to a patch release",
+      "matchPackageNames": ["vite"],
+      "semanticCommitType": "fix"
+    },
+    {
+      "description": "Node.js versions are tracked in .nvmrc, .tool-versions and the release workflow: update them together",
+      "groupName": "Node.js",
+      "matchDepNames": ["node", "nodejs"]
+    },
+    {
+      "description": "The engines field documents the minimum supported versions and is maintained manually",
+      "matchDepTypes": ["engines"],
+      "enabled": false
+    },
+    {
+      "description": "GitHub Actions are referenced by major tag only, so every update is a major: bundle them into one PR",
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "semanticCommitType": "ci"
+    }
+  ]
+}
